@@ -94,12 +94,13 @@ serve(async (req) => {
     const aiMessage = data.choices?.[0]?.message?.content || "";
     
     if (!generatedImage) {
-      console.error("No image in response:", JSON.stringify(data));
-      // Return the AI's message explaining why it couldn't generate an image
+      console.log("No image generated. AI message:", aiMessage);
+      // Return a user-friendly error message
+      const userFriendlyError = "Please upload an interior room photo. The AI needs to see the inside of a room to redesign it.";
       return new Response(
         JSON.stringify({ 
-          error: aiMessage || "No image was generated. Please upload an interior room photo.",
-          aiMessage: aiMessage
+          error: userFriendlyError,
+          details: aiMessage
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
