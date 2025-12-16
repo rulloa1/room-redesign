@@ -16,6 +16,12 @@ const styles: Style[] = [
     icon: "🏢",
   },
   {
+    id: "modern-spa",
+    name: "Modern Spa",
+    description: "Serene, zen-inspired retreat",
+    icon: "🧘",
+  },
+  {
     id: "scandinavian",
     name: "Scandinavian",
     description: "Light, airy, functional",
@@ -44,6 +50,42 @@ const styles: Style[] = [
     name: "Traditional",
     description: "Classic, elegant, timeless",
     icon: "🏛️",
+  },
+  {
+    id: "mid-century",
+    name: "Mid-Century Modern",
+    description: "Retro charm, organic curves",
+    icon: "🪑",
+  },
+  {
+    id: "coastal",
+    name: "Coastal",
+    description: "Beach vibes, relaxed feel",
+    icon: "🌊",
+  },
+  {
+    id: "farmhouse",
+    name: "Farmhouse",
+    description: "Rustic warmth, cozy charm",
+    icon: "🏡",
+  },
+  {
+    id: "art-deco",
+    name: "Art Deco",
+    description: "Bold geometry, glamorous",
+    icon: "💎",
+  },
+  {
+    id: "japanese",
+    name: "Japanese",
+    description: "Wabi-sabi, natural harmony",
+    icon: "🎋",
+  },
+  {
+    id: "mediterranean",
+    name: "Mediterranean",
+    description: "Warm tones, terracotta",
+    icon: "🌅",
   },
 ];
 
