@@ -14,7 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      project_rooms: {
+        Row: {
+          created_at: string
+          id: string
+          original_image: string
+          project_id: string
+          redesigned_image: string | null
+          room_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          original_image: string
+          project_id: string
+          redesigned_image?: string | null
+          room_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          original_image?: string
+          project_id?: string
+          redesigned_image?: string | null
+          room_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_rooms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          style: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          style: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          style?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
