@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { Sparkles, Home, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Sparkles, Home, ArrowRight, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
@@ -7,6 +8,7 @@ import { BeforeAfter } from "@/components/BeforeAfter";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import heroRoom from "@/assets/hero-room.jpg";
 
 const styleNames: Record<string, string> = {
@@ -19,6 +21,8 @@ const styleNames: Record<string, string> = {
 };
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [isLoading, setIsLoading] = useState(false);
@@ -96,9 +100,19 @@ const Index = () => {
               RoomRevive
             </span>
           </div>
-          <Button variant="hero" size="sm" onClick={scrollToUpload}>
-            Start Designing
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(user ? "/portfolio" : "/auth")}
+            >
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Portfolio
+            </Button>
+            <Button variant="hero" size="sm" onClick={scrollToUpload}>
+              Start Designing
+            </Button>
+          </div>
         </div>
       </header>
 
