@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,56 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Get auth header and verify user
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Please sign in to use redesign credits" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get user from token
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      console.error("Auth error:", userError);
+      return new Response(
+        JSON.stringify({ error: "Please sign in to use redesign credits" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("User authenticated:", user.id);
+
+    // Use the database function to check and deduct credit
+    const { data: creditUsed, error: creditError } = await supabase.rpc("use_credit", {
+      p_user_id: user.id,
+    });
+
+    if (creditError) {
+      console.error("Credit error:", creditError);
+      return new Response(
+        JSON.stringify({ error: "Failed to process credits. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!creditUsed) {
+      return new Response(
+        JSON.stringify({ error: "You've used all your credits. Upgrade to continue redesigning!" }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Credit deducted for user:", user.id);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -78,6 +129,11 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       
+      // Refund credit on AI error - we don't want to charge for failed attempts
+      await supabase.from("user_credits").update({
+        credits_remaining: supabase.rpc("get_credits", { p_user_id: user.id }),
+      });
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
@@ -86,7 +142,7 @@ serve(async (req) => {
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Usage limit reached. Please add credits to continue." }),
+          JSON.stringify({ error: "AI usage limit reached. Please try again later." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -95,13 +151,14 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log("AI response structure:", JSON.stringify(data, null, 2));
+    console.log("AI response received successfully for user:", user.id);
 
     const generatedImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     const aiMessage = data.choices?.[0]?.message?.content || "";
     
     if (!generatedImage) {
-      console.log("No image in response. Full data:", JSON.stringify(data));
+      console.log("No image in response for user:", user.id);
+      
       // Check if AI gave a positive response but no image (API issue)
       if (aiMessage.toLowerCase().includes("here's") || aiMessage.toLowerCase().includes("transformed")) {
         return new Response(
@@ -112,6 +169,7 @@ serve(async (req) => {
           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
       // AI is rejecting the image (not a room, etc.)
       return new Response(
         JSON.stringify({ 
@@ -121,6 +179,8 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Redesign successful for user:", user.id);
 
     return new Response(
       JSON.stringify({ 
