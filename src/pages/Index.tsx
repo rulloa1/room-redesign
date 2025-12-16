@@ -6,6 +6,7 @@ import { StyleSelector } from "@/components/StyleSelector";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import heroRoom from "@/assets/hero-room.jpg";
 
 const styleNames: Record<string, string> = {
@@ -45,15 +46,35 @@ const Index = () => {
 
     setIsLoading(true);
     
-    // Simulate AI processing - in production this would call an actual AI service
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    
-    // For demo purposes, we'll use the same image with a slight modification
-    // In production, this would be the AI-generated result
-    setRedesignedImage(selectedImage);
-    setIsLoading(false);
-    
-    toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
+    try {
+      const { data, error } = await supabase.functions.invoke("redesign-room", {
+        body: {
+          image: selectedImage,
+          style: selectedStyle,
+        },
+      });
+
+      if (error) {
+        console.error("Error calling redesign function:", error);
+        throw new Error(error.message || "Failed to redesign room");
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.redesignedImage) {
+        setRedesignedImage(data.redesignedImage);
+        toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
+      } else {
+        throw new Error("No image was returned");
+      }
+    } catch (error) {
+      console.error("Redesign error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to redesign. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [selectedImage, selectedStyle]);
 
   const scrollToUpload = () => {
