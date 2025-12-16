@@ -1,32 +1,47 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Sparkles, Home, ArrowRight, FolderOpen } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { CreditsDisplay } from "@/components/CreditsDisplay";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { ShopThisLook } from "@/components/ShopThisLook";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCredits } from "@/hooks/useCredits";
 import heroRoom from "@/assets/hero-room.jpg";
 
 const styleNames: Record<string, string> = {
   modern: "Modern",
+  "modern-spa": "Modern Spa",
   scandinavian: "Scandinavian",
   industrial: "Industrial",
   bohemian: "Bohemian",
   minimalist: "Minimalist",
   traditional: "Traditional",
+  "mid-century": "Mid-Century Modern",
+  coastal: "Coastal",
+  farmhouse: "Farmhouse",
+  "art-deco": "Art Deco",
+  japanese: "Japanese",
+  mediterranean: "Mediterranean",
 };
 
 const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { credits, useCredit, refreshCredits } = useCredits();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [isLoading, setIsLoading] = useState(false);
   const [redesignedImage, setRedesignedImage] = useState<string | null>(null);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<"no-credits" | "premium-style">("no-credits");
+  const [premiumFeatureName, setPremiumFeatureName] = useState("");
 
   const handleImageSelect = useCallback((file: File) => {
     const reader = new FileReader();
@@ -42,9 +57,37 @@ const Index = () => {
     setRedesignedImage(null);
   }, []);
 
+  const handlePremiumStyleClick = (styleName: string) => {
+    setPremiumFeatureName(styleName);
+    setUpgradeReason("premium-style");
+    setUpgradeModalOpen(true);
+  };
+
   const handleRedesign = useCallback(async () => {
     if (!selectedImage) {
       toast.error("Please upload an image first");
+      return;
+    }
+
+    // Check if user is logged in
+    if (!user) {
+      toast.error("Please sign in to use redesign credits");
+      navigate("/auth");
+      return;
+    }
+
+    // Check credits
+    if (credits && credits.tier !== "pro" && credits.creditsRemaining <= 0) {
+      setUpgradeReason("no-credits");
+      setUpgradeModalOpen(true);
+      return;
+    }
+
+    // Use a credit
+    const canProceed = await useCredit();
+    if (!canProceed) {
+      setUpgradeReason("no-credits");
+      setUpgradeModalOpen(true);
       return;
     }
 
@@ -70,16 +113,20 @@ const Index = () => {
       if (data.redesignedImage) {
         setRedesignedImage(data.redesignedImage);
         toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
+        // Refresh credits to get updated count
+        await refreshCredits();
       } else {
         throw new Error("No image was returned");
       }
     } catch (error) {
       console.error("Redesign error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to redesign. Please try again.");
+      // Refresh credits in case of error
+      await refreshCredits();
     } finally {
       setIsLoading(false);
     }
-  }, [selectedImage, selectedStyle]);
+  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate]);
 
   const scrollToUpload = () => {
     document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" });
@@ -88,6 +135,12 @@ const Index = () => {
   return (
     <div className="min-h-screen gradient-hero">
       <LoadingOverlay isVisible={isLoading} />
+      <UpgradeModal 
+        open={upgradeModalOpen} 
+        onOpenChange={setUpgradeModalOpen}
+        reason={upgradeReason}
+        featureName={premiumFeatureName}
+      />
       
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/60 backdrop-blur-md border-b border-border/50">
@@ -100,7 +153,8 @@ const Index = () => {
               RoomRevive
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {user && <CreditsDisplay />}
             <Button
               variant="ghost"
               size="sm"
@@ -109,6 +163,20 @@ const Index = () => {
               <FolderOpen className="w-4 h-4 mr-2" />
               Portfolio
             </Button>
+            {user ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>
+                Sign In
+              </Button>
+            )}
             <Button variant="hero" size="sm" onClick={scrollToUpload}>
               Start Designing
             </Button>
@@ -142,11 +210,11 @@ const Index = () => {
               <div className="flex items-center gap-6 pt-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
-                  Free to try
+                  3 free redesigns
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
-                  No signup required
+                  13 design styles
                 </div>
               </div>
             </div>
@@ -219,6 +287,7 @@ const Index = () => {
               <StyleSelector
                 selectedStyle={selectedStyle}
                 onStyleSelect={setSelectedStyle}
+                onPremiumClick={handlePremiumStyleClick}
               />
             </div>
 
@@ -233,17 +302,27 @@ const Index = () => {
               >
                 <Sparkles className="w-5 h-5 mr-2" />
                 Generate Redesign
+                {credits && credits.tier !== "pro" && (
+                  <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-foreground/20 text-xs">
+                    {credits.creditsRemaining} left
+                  </span>
+                )}
               </Button>
             </div>
 
             {/* Result */}
             {redesignedImage && selectedImage && (
-              <div className="p-6 rounded-2xl bg-card border border-border shadow-soft">
-                <BeforeAfter
-                  beforeImage={selectedImage}
-                  afterImage={redesignedImage}
-                  styleName={styleNames[selectedStyle]}
-                />
+              <div className="space-y-6">
+                <div className="p-6 rounded-2xl bg-card border border-border shadow-soft">
+                  <BeforeAfter
+                    beforeImage={selectedImage}
+                    afterImage={redesignedImage}
+                    styleName={styleNames[selectedStyle]}
+                  />
+                </div>
+                
+                {/* Shop This Look */}
+                <ShopThisLook styleName={styleNames[selectedStyle]} />
               </div>
             )}
           </div>
@@ -259,9 +338,14 @@ const Index = () => {
               RoomRevive © 2024
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Powered by AI • Transform any space instantly
-          </p>
+          <div className="flex items-center gap-4">
+            <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Pricing
+            </Link>
+            <p className="text-sm text-muted-foreground">
+              Powered by AI • Transform any space instantly
+            </p>
+          </div>
         </div>
       </footer>
     </div>
