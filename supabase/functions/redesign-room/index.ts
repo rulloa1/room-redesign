@@ -12,11 +12,43 @@ serve(async (req) => {
   }
 
   try {
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for base64 encoded image
+    const ALLOWED_STYLES = [
+      'modern', 'modern-spa', 'scandinavian', 'industrial', 'bohemian',
+      'minimalist', 'traditional', 'mid-century', 'coastal', 'farmhouse',
+      'art-deco', 'japanese', 'mediterranean'
+    ];
+
     const { image, style } = await req.json();
     
-    if (!image || !style) {
+    // Validate image exists and is string
+    if (!image || typeof image !== 'string') {
       return new Response(
-        JSON.stringify({ error: "Image and style are required" }),
+        JSON.stringify({ error: "Invalid image data" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate style exists and is in allowed list
+    if (!style || typeof style !== 'string' || !ALLOWED_STYLES.includes(style)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid style selection" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate image size
+    if (image.length > MAX_IMAGE_SIZE) {
+      return new Response(
+        JSON.stringify({ error: "Image too large. Maximum 10MB allowed." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate image format (data URL)
+    if (!image.startsWith('data:image/')) {
+      return new Response(
+        JSON.stringify({ error: "Invalid image format. Please upload a valid image." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
