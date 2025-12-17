@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Home, ArrowLeft, Plus, Sparkles, Trash2, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -21,6 +20,7 @@ import {
 import { ImageUpload } from "@/components/ImageUpload";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { RoomCustomizations, RoomCustomizationOptions, getDefaultCustomizations } from "@/components/RoomCustomizations";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -68,6 +68,7 @@ const Project = () => {
   const [newRoomType, setNewRoomType] = useState("living_room");
   const [newRoomImage, setNewRoomImage] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<ProjectRoom | null>(null);
+  const [customizations, setCustomizations] = useState<RoomCustomizationOptions>(getDefaultCustomizations());
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -156,6 +157,13 @@ const Project = () => {
         body: {
           image: room.original_image,
           style: project.style,
+          customizations: {
+            wallColor: customizations.wallColor,
+            wallColorCustom: customizations.wallColorCustom,
+            trimStyle: customizations.trimStyle,
+            trimColor: customizations.trimColor,
+            additionalDetails: customizations.additionalDetails,
+          },
         },
       });
 
@@ -175,6 +183,8 @@ const Project = () => {
             r.id === room.id ? { ...r, redesigned_image: data.redesignedImage } : r
           )
         );
+        // Reset customizations after successful redesign
+        setCustomizations(getDefaultCustomizations());
         toast.success("Room redesigned!");
       }
     } catch (error) {
@@ -396,6 +406,17 @@ const Project = () => {
                         </Button>
                       )}
                     </div>
+                    
+                    {/* Customizations panel - only show for rooms not yet redesigned */}
+                    {!selectedRoom.redesigned_image && (
+                      <div className="mb-4">
+                        <RoomCustomizations
+                          value={customizations}
+                          onChange={setCustomizations}
+                        />
+                      </div>
+                    )}
+                    
                     {selectedRoom.redesigned_image ? (
                       <BeforeAfter
                         beforeImage={selectedRoom.original_image}

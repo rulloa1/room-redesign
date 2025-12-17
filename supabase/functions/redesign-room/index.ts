@@ -19,7 +19,7 @@ serve(async (req) => {
       'art-deco', 'japanese', 'mediterranean'
     ];
 
-    const { image, style } = await req.json();
+    const { image, style, customizations } = await req.json();
     
     // Validate image exists and is string
     if (!image || typeof image !== 'string') {
@@ -136,9 +136,74 @@ serve(async (req) => {
       mediterranean: "Convert this room to Mediterranean style with terracotta tones, wrought iron details, arched doorways, mosaic tiles, and warm sunny European villa aesthetic. Maintain the room layout.",
     };
 
-    const prompt = stylePrompts[style] || stylePrompts.modern;
+    // Build customization additions to the prompt
+    let customizationPrompt = "";
+    
+    if (customizations) {
+      const customParts: string[] = [];
+      
+      // Wall color customization
+      if (customizations.wallColor && customizations.wallColor !== "keep") {
+        const wallColorMap: Record<string, string> = {
+          "white": "bright white walls",
+          "off-white": "warm off-white or cream colored walls",
+          "light-gray": "light gray walls",
+          "greige": "greige (gray-beige blend) walls",
+          "navy": "deep navy blue walls",
+          "sage": "soft sage green walls",
+          "terracotta": "warm terracotta walls",
+          "charcoal": "charcoal gray walls",
+          "blush": "subtle blush pink walls",
+          "accent-wall": "one accent wall in a bold contrasting color",
+          "custom": customizations.wallColorCustom || "custom wall color",
+        };
+        customParts.push(`Paint the walls with ${wallColorMap[customizations.wallColor] || customizations.wallColor}`);
+      }
+      
+      // Trim/molding customization
+      if (customizations.trimStyle && customizations.trimStyle !== "keep") {
+        const trimStyleMap: Record<string, string> = {
+          "none": "remove or minimize visible trim and molding",
+          "simple": "add simple, clean baseboards",
+          "classic": "add elegant crown molding throughout",
+          "wainscoting": "add wainscoting on the lower portion of the walls",
+          "shiplap": "add horizontal shiplap paneling on the walls",
+          "board-batten": "add vertical board and batten wall treatment",
+          "picture-rail": "add picture rail molding near the ceiling",
+          "coffered": "add coffered ceiling trim details",
+        };
+        
+        let trimInstruction = trimStyleMap[customizations.trimStyle] || customizations.trimStyle;
+        
+        // Add trim color if specified
+        if (customizations.trimColor && !["keep", "none"].includes(customizations.trimStyle)) {
+          const trimColorMap: Record<string, string> = {
+            "white": "in bright white",
+            "match": "matching the wall color",
+            "contrast": "in a dark contrasting color",
+            "wood": "in natural wood finish",
+            "black": "in black",
+          };
+          trimInstruction += ` ${trimColorMap[customizations.trimColor] || ""}`;
+        }
+        
+        customParts.push(trimInstruction);
+      }
+      
+      // Additional details
+      if (customizations.additionalDetails && customizations.additionalDetails.trim()) {
+        customParts.push(customizations.additionalDetails.trim());
+      }
+      
+      if (customParts.length > 0) {
+        customizationPrompt = " IMPORTANT CUSTOMIZATIONS: " + customParts.join(". ") + ".";
+      }
+    }
 
-    console.log("Sending request to Lovable AI for room redesign with style:", style);
+    const basePrompt = stylePrompts[style] || stylePrompts.modern;
+    const prompt = basePrompt + customizationPrompt;
+
+    console.log("Sending request to Lovable AI for room redesign with style:", style, "and customizations:", customizations);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
