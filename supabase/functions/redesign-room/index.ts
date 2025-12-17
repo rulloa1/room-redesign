@@ -62,14 +62,17 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client
+    // Create Supabase clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get user from token
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    // Service role client for admin operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Get user from token using service role
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     
     if (userError || !user) {
       console.error("Auth error:", userError);
@@ -81,8 +84,17 @@ serve(async (req) => {
 
     console.log("User authenticated:", user.id);
 
+    // Create user-authenticated client for RPC call (so auth.uid() works)
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
     // Use the database function to check and deduct credit
-    const { data: creditUsed, error: creditError } = await supabase.rpc("use_credit", {
+    const { data: creditUsed, error: creditError } = await supabaseUser.rpc("use_credit", {
       p_user_id: user.id,
     });
 
@@ -161,10 +173,10 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       
-      // Refund credit on AI error - we don't want to charge for failed attempts
-      await supabase.from("user_credits").update({
-        credits_remaining: supabase.rpc("get_credits", { p_user_id: user.id }),
-      });
+      // Refund credit on AI error - increment credit back using admin client
+      await supabaseAdmin.from("user_credits")
+        .update({ credits_remaining: supabaseAdmin.rpc("get_credits", { p_user_id: user.id }) })
+        .eq("user_id", user.id);
       
       if (response.status === 429) {
         return new Response(
