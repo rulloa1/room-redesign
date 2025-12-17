@@ -239,9 +239,20 @@ serve(async (req) => {
       console.error("AI gateway error:", response.status, errorText);
       
       // Refund credit on AI error - increment credit back using admin client
-      await supabaseAdmin.from("user_credits")
-        .update({ credits_remaining: supabaseAdmin.rpc("get_credits", { p_user_id: user.id }) })
-        .eq("user_id", user.id);
+      // First get current credits, then increment
+      const { data: creditData } = await supabaseAdmin
+        .from("user_credits")
+        .select("credits_remaining")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (creditData) {
+        await supabaseAdmin
+          .from("user_credits")
+          .update({ credits_remaining: creditData.credits_remaining + 1 })
+          .eq("user_id", user.id);
+        console.log("Credit refunded for user:", user.id);
+      }
       
       if (response.status === 429) {
         return new Response(
