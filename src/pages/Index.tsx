@@ -144,23 +144,24 @@ const Index = () => {
       
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/60 backdrop-blur-md border-b border-border/50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <nav className="container mx-auto px-4 h-16 flex items-center justify-between" aria-label="Main navigation">
+          <a href="/" className="flex items-center gap-2" aria-label="RoomRevive Home">
             <div className="p-2 rounded-lg bg-primary/10">
-              <Home className="w-5 h-5 text-primary" />
+              <Home className="w-5 h-5 text-primary" aria-hidden="true" />
             </div>
             <span className="text-lg font-display font-semibold text-foreground">
               RoomRevive
             </span>
-          </div>
+          </a>
           <div className="flex items-center gap-3">
             {user && <CreditsDisplay />}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate(user ? "/portfolio" : "/auth")}
+              aria-label="View portfolio"
             >
-              <FolderOpen className="w-4 h-4 mr-2" />
+              <FolderOpen className="w-4 h-4 mr-2" aria-hidden="true" />
               Portfolio
             </Button>
             {user ? (
@@ -168,23 +169,26 @@ const Index = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/dashboard")}
+                aria-label="Go to dashboard"
               >
-                <LayoutDashboard className="w-4 h-4 mr-2" />
+                <LayoutDashboard className="w-4 h-4 mr-2" aria-hidden="true" />
                 Dashboard
               </Button>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>
+              <Button variant="outline" size="sm" onClick={() => navigate("/auth")} aria-label="Sign in to your account">
                 Sign In
               </Button>
             )}
-            <Button variant="hero" size="sm" onClick={scrollToUpload}>
+            <Button variant="hero" size="sm" onClick={scrollToUpload} aria-label="Start designing your room">
               Start Designing
             </Button>
           </div>
-        </div>
+        </nav>
       </header>
 
-      {/* Hero Section */}
+      {/* Main Content */}
+      <main>
+      <article itemScope itemType="https://schema.org/WebPage">
       <section className="relative pt-32 pb-20 px-4 overflow-hidden">
         <div className="container mx-auto max-w-6xl">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -328,6 +332,7 @@ const Index = () => {
           </div>
         </div>
       </section>
+      </article>
 
       {/* Footer */}
       <footer className="py-8 px-4 border-t border-border">
@@ -348,6 +353,7 @@ const Index = () => {
           </div>
         </div>
       </footer>
+      </main>
     </div>
   );
 };
