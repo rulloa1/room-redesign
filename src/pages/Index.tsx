@@ -11,9 +11,11 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { ShopThisLook } from "@/components/ShopThisLook";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getEdgeFunctionErrorMessage } from "@/lib/getEdgeFunctionErrorMessage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCredits } from "@/hooks/useCredits";
 import heroRoom from "@/assets/hero-room.jpg";
+
 
 const styleNames: Record<string, string> = {
   modern: "Modern",
@@ -94,7 +96,7 @@ const Index = () => {
     setIsLoading(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke("redesign-room", {
+      const { data, error, response } = await supabase.functions.invoke("redesign-room", {
         body: {
           image: selectedImage,
           style: selectedStyle,
@@ -103,10 +105,11 @@ const Index = () => {
 
       if (error) {
         console.error("Error calling redesign function:", error);
-        throw new Error(error.message || "Failed to redesign room");
+        const parsed = await getEdgeFunctionErrorMessage(error, response);
+        throw new Error(parsed.message || "Failed to redesign room");
       }
 
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
 

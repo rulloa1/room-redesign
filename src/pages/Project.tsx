@@ -23,7 +23,9 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { RoomCustomizations, RoomCustomizationOptions, getDefaultCustomizations } from "@/components/RoomCustomizations";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getEdgeFunctionErrorMessage } from "@/lib/getEdgeFunctionErrorMessage";
 import { toast } from "sonner";
+
 
 interface ProjectData {
   id: string;
@@ -153,7 +155,7 @@ const Project = () => {
     setProcessingRoom(room.id);
 
     try {
-      const { data, error } = await supabase.functions.invoke("redesign-room", {
+      const { data, error, response } = await supabase.functions.invoke("redesign-room", {
         body: {
           image: room.original_image,
           style: project.style,
@@ -167,8 +169,11 @@ const Project = () => {
         },
       });
 
-      if (error) throw new Error(error.message);
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        const parsed = await getEdgeFunctionErrorMessage(error, response);
+        throw new Error(parsed.message);
+      }
+      if (data?.error) throw new Error(data.error);
 
       if (data.redesignedImage) {
         const { error: updateError } = await supabase
