@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard } from "lucide-react";
+import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
@@ -327,6 +327,35 @@ const Index = () => {
                 
                 {/* Shop This Look */}
                 <ShopThisLook styleName={styleNames[selectedStyle]} />
+
+                {/* Make It Real CTA */}
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 via-card to-primary/5 border border-primary/20 shadow-soft">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-shrink-0 p-4 rounded-full bg-primary/10">
+                      <Hammer className="w-8 h-8 text-primary" />
+                    </div>
+                    <div className="flex-1 text-center md:text-left">
+                      <h3 className="text-xl font-display font-semibold text-foreground mb-2">
+                        Love This Design? Make It Real!
+                      </h3>
+                      <p className="text-muted-foreground">
+                        Connect with our professional design partner to bring your AI-generated vision to life. 
+                        Get expert guidance on materials, furniture, and execution.
+                      </p>
+                    </div>
+                    <a
+                      href="https://www.mcdesign.bio"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0"
+                    >
+                      <Button variant="hero" size="lg" className="group">
+                        Contact Designer
+                        <ExternalLink className="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" />
+                      </Button>
+                    </a>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -343,12 +372,21 @@ const Index = () => {
               RoomRevive © 2024
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-end">
             <Link to="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Pricing
             </Link>
+            <a 
+              href="https://www.mcdesign.bio" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+            >
+              Hire a Designer
+              <ExternalLink className="w-3 h-3" />
+            </a>
             <p className="text-sm text-muted-foreground">
-              Powered by AI • Transform any space instantly
+              Powered by AI
             </p>
           </div>
         </div>
