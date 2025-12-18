@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink } from "lucide-react";
+import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
@@ -9,11 +9,15 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { CreditsDisplay } from "@/components/CreditsDisplay";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { ShopThisLook } from "@/components/ShopThisLook";
+import { PostRedesignCustomization } from "@/components/PostRedesignCustomization";
+import { RoomCustomizationOptions } from "@/components/RoomCustomizations";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionErrorMessage } from "@/lib/getEdgeFunctionErrorMessage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCredits } from "@/hooks/useCredits";
+import { useRedesignHistory } from "@/hooks/useRedesignHistory";
+import { downloadImage, generateFilename } from "@/lib/downloadImage";
 import heroRoom from "@/assets/hero-room.jpg";
 
 
@@ -37,10 +41,14 @@ const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { credits, useCredit, refreshCredits } = useCredits();
+  const { saveRedesign, updateFavorite } = useRedesignHistory();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
   const [redesignedImage, setRedesignedImage] = useState<string | null>(null);
+  const [currentRedesignId, setCurrentRedesignId] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<"no-credits" | "premium-style">("no-credits");
   const [premiumFeatureName, setPremiumFeatureName] = useState("");
@@ -57,6 +65,8 @@ const Index = () => {
   const handleClearImage = useCallback(() => {
     setSelectedImage(null);
     setRedesignedImage(null);
+    setCurrentRedesignId(null);
+    setIsFavorite(false);
   }, []);
 
   const handlePremiumStyleClick = (styleName: string) => {
@@ -65,27 +75,54 @@ const Index = () => {
     setUpgradeModalOpen(true);
   };
 
+  const performRedesign = async (
+    image: string,
+    style: string,
+    customizations?: RoomCustomizationOptions
+  ) => {
+    const { data, error, response } = await supabase.functions.invoke("redesign-room", {
+      body: {
+        image,
+        style,
+        customizations,
+      },
+    });
+
+    if (error) {
+      console.error("Error calling redesign function:", error);
+      const parsed = await getEdgeFunctionErrorMessage(error, response);
+      throw new Error(parsed.message || "Failed to redesign room");
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    if (!data.redesignedImage) {
+      throw new Error("No image was returned");
+    }
+
+    return data.redesignedImage;
+  };
+
   const handleRedesign = useCallback(async () => {
     if (!selectedImage) {
       toast.error("Please upload an image first");
       return;
     }
 
-    // Check if user is logged in
     if (!user) {
       toast.error("Please sign in to use redesign credits");
       navigate("/auth");
       return;
     }
 
-    // Check credits
     if (credits && credits.tier !== "pro" && credits.creditsRemaining <= 0) {
       setUpgradeReason("no-credits");
       setUpgradeModalOpen(true);
       return;
     }
 
-    // Use a credit
     const canProceed = await useCredit();
     if (!canProceed) {
       setUpgradeReason("no-credits");
@@ -94,42 +131,107 @@ const Index = () => {
     }
 
     setIsLoading(true);
-    
+
     try {
-      const { data, error, response } = await supabase.functions.invoke("redesign-room", {
-        body: {
-          image: selectedImage,
-          style: selectedStyle,
-        },
-      });
+      const redesignedImageUrl = await performRedesign(selectedImage, selectedStyle);
+      setRedesignedImage(redesignedImageUrl);
+      toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
 
-      if (error) {
-        console.error("Error calling redesign function:", error);
-        const parsed = await getEdgeFunctionErrorMessage(error, response);
-        throw new Error(parsed.message || "Failed to redesign room");
-      }
+      const redesignId = await saveRedesign(
+        selectedImage,
+        redesignedImageUrl,
+        selectedStyle,
+        {},
+        false
+      );
+      setCurrentRedesignId(redesignId);
+      setIsFavorite(false);
 
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      if (data.redesignedImage) {
-        setRedesignedImage(data.redesignedImage);
-        toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
-        // Refresh credits to get updated count
-        await refreshCredits();
-      } else {
-        throw new Error("No image was returned");
-      }
+      await refreshCredits();
     } catch (error) {
       console.error("Redesign error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to redesign. Please try again.");
-      // Refresh credits in case of error
       await refreshCredits();
     } finally {
       setIsLoading(false);
     }
-  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate]);
+  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate, saveRedesign]);
+
+  const handleRefine = useCallback(
+    async (customizations: RoomCustomizationOptions) => {
+      if (!selectedImage || !redesignedImage) return;
+
+      if (!user) {
+        toast.error("Please sign in to refine your redesign");
+        navigate("/auth");
+        return;
+      }
+
+      if (credits && credits.tier !== "pro" && credits.creditsRemaining <= 0) {
+        setUpgradeReason("no-credits");
+        setUpgradeModalOpen(true);
+        return;
+      }
+
+      const canProceed = await useCredit();
+      if (!canProceed) {
+        setUpgradeReason("no-credits");
+        setUpgradeModalOpen(true);
+        return;
+      }
+
+      setIsRefining(true);
+
+      try {
+        const refinedImageUrl = await performRedesign(
+          selectedImage,
+          selectedStyle,
+          customizations
+        );
+        setRedesignedImage(refinedImageUrl);
+        toast.success("Your customizations have been applied!");
+
+        const redesignId = await saveRedesign(
+          selectedImage,
+          refinedImageUrl,
+          selectedStyle,
+          customizations,
+          isFavorite
+        );
+        setCurrentRedesignId(redesignId);
+
+        await refreshCredits();
+      } catch (error) {
+        console.error("Refinement error:", error);
+        toast.error(
+          error instanceof Error ? error.message : "Failed to apply customizations. Please try again."
+        );
+        await refreshCredits();
+      } finally {
+        setIsRefining(false);
+      }
+    },
+    [selectedImage, redesignedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate, saveRedesign, isFavorite]
+  );
+
+  const handleDownload = useCallback(async () => {
+    if (!redesignedImage) return;
+    try {
+      await downloadImage(redesignedImage, generateFilename(styleNames[selectedStyle], "redesign"));
+      toast.success("Image downloaded successfully!");
+    } catch (error) {
+      toast.error("Failed to download image");
+    }
+  }, [redesignedImage, selectedStyle]);
+
+  const handleSaveFavorite = useCallback(
+    async (favorite: boolean) => {
+      if (!currentRedesignId) return;
+      setIsFavorite(favorite);
+      await updateFavorite(currentRedesignId, favorite);
+    },
+    [currentRedesignId, updateFavorite]
+  );
 
   const scrollToUpload = () => {
     document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" });
@@ -137,14 +239,22 @@ const Index = () => {
 
   return (
     <div className="min-h-screen gradient-hero">
-      <LoadingOverlay isVisible={isLoading} />
-      <UpgradeModal 
-        open={upgradeModalOpen} 
+      <LoadingOverlay
+        isVisible={isLoading || isRefining}
+        title={isRefining ? "Applying Your Customizations" : "Reimagining Your Space"}
+        description={
+          isRefining
+            ? "Refining the design with your wall colors and trim preferences..."
+            : "Our AI is working its magic to transform your room..."
+        }
+      />
+      <UpgradeModal
+        open={upgradeModalOpen}
         onOpenChange={setUpgradeModalOpen}
         reason={upgradeReason}
         featureName={premiumFeatureName}
       />
-      
+
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/60 backdrop-blur-md border-b border-border/50">
         <nav className="container mx-auto px-4 h-16 flex items-center justify-between" aria-label="Main navigation">
@@ -165,8 +275,24 @@ const Index = () => {
               aria-label="View portfolio"
             >
               <FolderOpen className="w-4 h-4 mr-2" aria-hidden="true" />
-              Portfolio
+              <span className="hidden sm:inline">Portfolio</span>
             </Button>
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const historySection = document.getElementById("history-section");
+                  if (historySection) {
+                    historySection.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
+                aria-label="View redesign history"
+              >
+                <History className="w-4 h-4 mr-2" aria-hidden="true" />
+                <span className="hidden sm:inline">History</span>
+              </Button>
+            )}
             {user ? (
               <Button
                 variant="ghost"
@@ -175,7 +301,7 @@ const Index = () => {
                 aria-label="Go to dashboard"
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" aria-hidden="true" />
-                Dashboard
+                <span className="hidden sm:inline">Dashboard</span>
               </Button>
             ) : (
               <Button variant="outline" size="sm" onClick={() => navigate("/auth")} aria-label="Sign in to your account">
@@ -327,7 +453,19 @@ const Index = () => {
                     styleName={styleNames[selectedStyle]}
                   />
                 </div>
-                
+
+                {/* Post-Redesign Customization */}
+                <PostRedesignCustomization
+                  originalImage={selectedImage}
+                  redesignedImage={redesignedImage}
+                  styleName={styleNames[selectedStyle]}
+                  onRefine={handleRefine}
+                  onDownload={handleDownload}
+                  onSave={handleSaveFavorite}
+                  isRefining={isRefining}
+                  isFavorite={isFavorite}
+                />
+
                 {/* Shop This Look */}
                 <ShopThisLook styleName={styleNames[selectedStyle]} />
 
@@ -342,7 +480,7 @@ const Index = () => {
                         Love This Design? Make It Real!
                       </h3>
                       <p className="text-muted-foreground">
-                        Connect with our professional design partner to bring your AI-generated vision to life. 
+                        Connect with our professional design partner to bring your AI-generated vision to life.
                         Get expert guidance on materials, furniture, and execution.
                       </p>
                     </div>
