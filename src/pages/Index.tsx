@@ -195,7 +195,7 @@ const Index = () => {
           selectedImage,
           refinedImageUrl,
           selectedStyle,
-          customizations,
+          customizations as unknown as Record<string, unknown>,
           isFavorite
         );
         setCurrentRedesignId(redesignId);
