@@ -55,6 +55,11 @@ const Index = () => {
   const [premiumFeatureName, setPremiumFeatureName] = useState("");
   const [roomAnalysis, setRoomAnalysis] = useState<RoomAnalysisData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [selectedSuggestedColor, setSelectedSuggestedColor] = useState<string | null>(null);
+
+  const handleApplyColor = useCallback((color: string) => {
+    setSelectedSuggestedColor(color);
+  }, []);
 
   const handleImageSelect = useCallback((file: File) => {
     const reader = new FileReader();
@@ -62,6 +67,7 @@ const Index = () => {
       setSelectedImage(e.target?.result as string);
       setRedesignedImage(null);
       setRoomAnalysis(null);
+      setSelectedSuggestedColor(null);
     };
     reader.readAsDataURL(file);
   }, []);
@@ -72,6 +78,7 @@ const Index = () => {
     setCurrentRedesignId(null);
     setIsFavorite(false);
     setRoomAnalysis(null);
+    setSelectedSuggestedColor(null);
   }, []);
 
   const handleAnalyzeRoom = useCallback(async () => {
@@ -462,6 +469,7 @@ const Index = () => {
                 isLoading={isAnalyzing}
                 onAnalyze={handleAnalyzeRoom}
                 hasImage={!!selectedImage}
+                onApplyColor={handleApplyColor}
               />
             )}
 
@@ -522,6 +530,7 @@ const Index = () => {
                   onSave={handleSaveFavorite}
                   isRefining={isRefining}
                   isFavorite={isFavorite}
+                  suggestedColor={selectedSuggestedColor || undefined}
                 />
 
                 {/* Shop This Look */}

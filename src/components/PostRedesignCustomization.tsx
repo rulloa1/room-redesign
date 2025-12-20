@@ -14,6 +14,7 @@ interface PostRedesignCustomizationProps {
   onSave: (isFavorite: boolean) => Promise<void>;
   isRefining: boolean;
   isFavorite: boolean;
+  suggestedColor?: string;
 }
 
 export const PostRedesignCustomization = ({
@@ -25,6 +26,7 @@ export const PostRedesignCustomization = ({
   onSave,
   isRefining,
   isFavorite: initialIsFavorite,
+  suggestedColor,
 }: PostRedesignCustomizationProps) => {
   const [customizations, setCustomizations] = useState<RoomCustomizationOptions>(
     getDefaultCustomizations()
@@ -122,6 +124,7 @@ export const PostRedesignCustomization = ({
             <RoomCustomizations
               value={customizations}
               onChange={setCustomizations}
+              suggestedColor={suggestedColor}
             />
             <div className="flex gap-3 pt-4">
               <Button
