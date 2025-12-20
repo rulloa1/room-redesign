@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Palette, Sofa, Lightbulb, Home, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { Palette, Sofa, Lightbulb, Home, Sparkles, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 export interface RoomAnalysisData {
   roomType: string;
@@ -25,10 +27,18 @@ interface RoomAnalysisProps {
   isLoading: boolean;
   onAnalyze: () => void;
   hasImage: boolean;
+  onApplyColor?: (color: string) => void;
 }
 
-export const RoomAnalysis = ({ analysis, isLoading, onAnalyze, hasImage }: RoomAnalysisProps) => {
+export const RoomAnalysis = ({ analysis, isLoading, onAnalyze, hasImage, onApplyColor }: RoomAnalysisProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleApplyColor = (color: string) => {
+    if (onApplyColor) {
+      onApplyColor(color);
+      toast.success(`"${color}" will be applied to your next redesign!`);
+    }
+  };
 
   if (!hasImage) {
     return null;
@@ -105,9 +115,24 @@ export const RoomAnalysis = ({ analysis, isLoading, onAnalyze, hasImage }: RoomA
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground w-16">Suggested:</span>
-                  {analysis.colorPalette.suggested.map((color, i) => (
-                    <Badge key={i} className="bg-primary/10 text-primary border-primary/20">{color}</Badge>
-                  ))}
+                  <TooltipProvider>
+                    {analysis.colorPalette.suggested.map((color, i) => (
+                      <Tooltip key={i}>
+                        <TooltipTrigger asChild>
+                          <Badge 
+                            className="bg-primary/10 text-primary border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors group"
+                            onClick={() => handleApplyColor(color)}
+                          >
+                            {color}
+                            <Plus className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Click to apply this color to your redesign</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
                 </div>
               </div>
             </div>

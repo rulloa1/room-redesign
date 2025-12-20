@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Paintbrush, Frame, Settings2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -28,6 +28,7 @@ export interface RoomCustomizationOptions {
 interface RoomCustomizationsProps {
   value: RoomCustomizationOptions;
   onChange: (options: RoomCustomizationOptions) => void;
+  suggestedColor?: string;
 }
 
 const wallColorOptions = [
@@ -65,13 +66,16 @@ const trimColorOptions = [
   { value: "black", label: "Black" },
 ];
 
-export const RoomCustomizations = ({ value, onChange }: RoomCustomizationsProps) => {
+export const RoomCustomizations = ({ value, onChange, suggestedColor }: RoomCustomizationsProps) => {
   const updateOption = <K extends keyof RoomCustomizationOptions>(
     key: K,
     newValue: RoomCustomizationOptions[K]
   ) => {
     onChange({ ...value, [key]: newValue });
   };
+
+  // If there's a suggested color and wall color is still default, show it
+  const showSuggestedColor = suggestedColor && value.wallColor === "keep";
 
   return (
     <Accordion type="single" collapsible className="w-full">
@@ -83,6 +87,26 @@ export const RoomCustomizations = ({ value, onChange }: RoomCustomizationsProps)
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 pt-2">
+          {/* Suggested Color Alert */}
+          {showSuggestedColor && (
+            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-sm text-foreground mb-2">
+                <span className="font-medium">AI Suggested Color:</span> {suggestedColor}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  updateOption("wallColor", "custom");
+                  updateOption("wallColorCustom", suggestedColor);
+                }}
+                className="text-xs"
+              >
+                Apply "{suggestedColor}"
+              </Button>
+            </div>
+          )}
+
           {/* Wall Color */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2 text-sm">
