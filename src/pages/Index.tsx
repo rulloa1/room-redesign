@@ -11,6 +11,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { ShopThisLook } from "@/components/ShopThisLook";
 import { PostRedesignCustomization } from "@/components/PostRedesignCustomization";
 import { RoomCustomizationOptions } from "@/components/RoomCustomizations";
+import { RoomAnalysis, RoomAnalysisData } from "@/components/RoomAnalysis";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionErrorMessage } from "@/lib/getEdgeFunctionErrorMessage";
@@ -52,12 +53,15 @@ const Index = () => {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<"no-credits" | "premium-style">("no-credits");
   const [premiumFeatureName, setPremiumFeatureName] = useState("");
+  const [roomAnalysis, setRoomAnalysis] = useState<RoomAnalysisData | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const handleImageSelect = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       setSelectedImage(e.target?.result as string);
       setRedesignedImage(null);
+      setRoomAnalysis(null);
     };
     reader.readAsDataURL(file);
   }, []);
@@ -67,7 +71,51 @@ const Index = () => {
     setRedesignedImage(null);
     setCurrentRedesignId(null);
     setIsFavorite(false);
+    setRoomAnalysis(null);
   }, []);
+
+  const handleAnalyzeRoom = useCallback(async () => {
+    if (!selectedImage) {
+      toast.error("Please upload an image first");
+      return;
+    }
+
+    if (!user) {
+      toast.error("Please sign in to analyze rooms");
+      navigate("/auth");
+      return;
+    }
+
+    setIsAnalyzing(true);
+
+    try {
+      const { data, error, response } = await supabase.functions.invoke("analyze-room", {
+        body: { image: selectedImage },
+      });
+
+      if (error) {
+        console.error("Error calling analyze function:", error);
+        const parsed = await getEdgeFunctionErrorMessage(error, response);
+        throw new Error(parsed.message || "Failed to analyze room");
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      if (!data.analysis) {
+        throw new Error("No analysis was returned");
+      }
+
+      setRoomAnalysis(data.analysis);
+      toast.success("Room analyzed successfully!");
+    } catch (error) {
+      console.error("Analysis error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to analyze room. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [selectedImage, user, navigate]);
 
   const handlePremiumStyleClick = (styleName: string) => {
     setPremiumFeatureName(styleName);
@@ -406,6 +454,16 @@ const Index = () => {
                 onClear={handleClearImage}
               />
             </div>
+
+            {/* Room Analysis */}
+            {selectedImage && (
+              <RoomAnalysis
+                analysis={roomAnalysis}
+                isLoading={isAnalyzing}
+                onAnalyze={handleAnalyzeRoom}
+                hasImage={!!selectedImage}
+              />
+            )}
 
             {/* Step 2: Select Style */}
             <div className="p-6 rounded-2xl bg-card border border-border shadow-soft">
