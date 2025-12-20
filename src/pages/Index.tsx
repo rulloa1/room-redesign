@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink, History } from "lucide-react";
+import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink, History, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
@@ -500,6 +500,36 @@ const Index = () => {
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* Google Opal Interior Designer Section */}
+      <section className="py-20 px-4 bg-card/30">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+              <Palette className="w-4 h-4" />
+              Google AI Experiment
+            </div>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+              Try Another AI Designer
+            </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              Explore Google's experimental Opal Interior Designer for an alternative AI-powered room design experience.
+            </p>
+          </div>
+          <div className="rounded-2xl overflow-hidden border border-border shadow-medium bg-card">
+            <iframe
+              src="https://opal.google/?flow=drive:/1c9MhAaAozGS7rM5uZJmxiSChMP4zxfN5&shared&mode=app"
+              title="Google Opal Interior Designer"
+              className="w-full h-[700px] border-0"
+              allow="camera; microphone"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            />
+          </div>
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            Powered by Google Labs • This is an experimental feature
+          </p>
         </div>
       </section>
       </article>
