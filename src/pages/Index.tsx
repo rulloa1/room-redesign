@@ -9,6 +9,7 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { CreditsDisplay } from "@/components/CreditsDisplay";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { ShopThisLook } from "@/components/ShopThisLook";
+import { AIErrorPanel } from "@/components/AIErrorPanel";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,6 +43,7 @@ const Index = () => {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<"no-credits" | "premium-style">("no-credits");
   const [premiumFeatureName, setPremiumFeatureName] = useState("");
+  const [aiError, setAiError] = useState(false);
 
   const handleImageSelect = useCallback((file: File) => {
     const reader = new FileReader();
@@ -92,6 +94,7 @@ const Index = () => {
     }
 
     setIsLoading(true);
+    setAiError(false);
     
     try {
       const { data, error } = await supabase.functions.invoke("redesign-room", {
@@ -103,10 +106,21 @@ const Index = () => {
 
       if (error) {
         console.error("Error calling redesign function:", error);
+        // Check for 402/429 AI limit errors
+        if (error.message?.includes("402") || error.message?.includes("429") || 
+            error.message?.includes("usage limit") || error.message?.includes("rate limit")) {
+          setAiError(true);
+          return;
+        }
         throw new Error(error.message || "Failed to redesign room");
       }
 
       if (data.error) {
+        // Check for AI limit errors in response body
+        if (data.error.includes("usage limit") || data.error.includes("rate limit")) {
+          setAiError(true);
+          return;
+        }
         throw new Error(data.error);
       }
 
@@ -120,7 +134,12 @@ const Index = () => {
       }
     } catch (error) {
       console.error("Redesign error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to redesign. Please try again.");
+      const errorMsg = error instanceof Error ? error.message : "";
+      if (errorMsg.includes("usage limit") || errorMsg.includes("rate limit")) {
+        setAiError(true);
+      } else {
+        toast.error(errorMsg || "Failed to redesign. Please try again.");
+      }
       // Refresh credits in case of error
       await refreshCredits();
     } finally {
@@ -312,6 +331,14 @@ const Index = () => {
                   </span>
                 )}
               </Button>
+
+              {/* AI Error Panel */}
+              {aiError && (
+                <AIErrorPanel
+                  onRetry={handleRedesign}
+                  isRetrying={isLoading}
+                />
+              )}
             </div>
 
             {/* Result */}
