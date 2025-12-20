@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink, History, Palette } from "lucide-react";
+import { Sparkles, Home, ArrowRight, FolderOpen, LayoutDashboard, Hammer, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ImageUpload";
 import { StyleSelector } from "@/components/StyleSelector";
@@ -9,18 +9,11 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { CreditsDisplay } from "@/components/CreditsDisplay";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { ShopThisLook } from "@/components/ShopThisLook";
-import { PostRedesignCustomization } from "@/components/PostRedesignCustomization";
-import { RoomCustomizationOptions } from "@/components/RoomCustomizations";
-import { RoomAnalysis, RoomAnalysisData } from "@/components/RoomAnalysis";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getEdgeFunctionErrorMessage } from "@/lib/getEdgeFunctionErrorMessage";
 import { useAuth } from "@/hooks/useAuth";
 import { useCredits } from "@/hooks/useCredits";
-import { useRedesignHistory } from "@/hooks/useRedesignHistory";
-import { downloadImage, generateFilename } from "@/lib/downloadImage";
 import heroRoom from "@/assets/hero-room.jpg";
-
 
 const styleNames: Record<string, string> = {
   modern: "Modern",
@@ -42,32 +35,19 @@ const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { credits, useCredit, refreshCredits } = useCredits();
-  const { saveRedesign, updateFavorite } = useRedesignHistory();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRefining, setIsRefining] = useState(false);
   const [redesignedImage, setRedesignedImage] = useState<string | null>(null);
-  const [currentRedesignId, setCurrentRedesignId] = useState<string | null>(null);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<"no-credits" | "premium-style">("no-credits");
   const [premiumFeatureName, setPremiumFeatureName] = useState("");
-  const [roomAnalysis, setRoomAnalysis] = useState<RoomAnalysisData | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [selectedSuggestedColor, setSelectedSuggestedColor] = useState<string | null>(null);
-
-  const handleApplyColor = useCallback((color: string) => {
-    setSelectedSuggestedColor(color);
-  }, []);
 
   const handleImageSelect = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       setSelectedImage(e.target?.result as string);
       setRedesignedImage(null);
-      setRoomAnalysis(null);
-      setSelectedSuggestedColor(null);
     };
     reader.readAsDataURL(file);
   }, []);
@@ -75,89 +55,12 @@ const Index = () => {
   const handleClearImage = useCallback(() => {
     setSelectedImage(null);
     setRedesignedImage(null);
-    setCurrentRedesignId(null);
-    setIsFavorite(false);
-    setRoomAnalysis(null);
-    setSelectedSuggestedColor(null);
   }, []);
-
-  const handleAnalyzeRoom = useCallback(async () => {
-    if (!selectedImage) {
-      toast.error("Please upload an image first");
-      return;
-    }
-
-    if (!user) {
-      toast.error("Please sign in to analyze rooms");
-      navigate("/auth");
-      return;
-    }
-
-    setIsAnalyzing(true);
-
-    try {
-      const { data, error, response } = await supabase.functions.invoke("analyze-room", {
-        body: { image: selectedImage },
-      });
-
-      if (error) {
-        console.error("Error calling analyze function:", error);
-        const parsed = await getEdgeFunctionErrorMessage(error, response);
-        throw new Error(parsed.message || "Failed to analyze room");
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      if (!data.analysis) {
-        throw new Error("No analysis was returned");
-      }
-
-      setRoomAnalysis(data.analysis);
-      toast.success("Room analyzed successfully!");
-    } catch (error) {
-      console.error("Analysis error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to analyze room. Please try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [selectedImage, user, navigate]);
 
   const handlePremiumStyleClick = (styleName: string) => {
     setPremiumFeatureName(styleName);
     setUpgradeReason("premium-style");
     setUpgradeModalOpen(true);
-  };
-
-  const performRedesign = async (
-    image: string,
-    style: string,
-    customizations?: RoomCustomizationOptions
-  ) => {
-    const { data, error, response } = await supabase.functions.invoke("redesign-room", {
-      body: {
-        image,
-        style,
-        customizations,
-      },
-    });
-
-    if (error) {
-      console.error("Error calling redesign function:", error);
-      const parsed = await getEdgeFunctionErrorMessage(error, response);
-      throw new Error(parsed.message || "Failed to redesign room");
-    }
-
-    if (data?.error) {
-      throw new Error(data.error);
-    }
-
-    if (!data.redesignedImage) {
-      throw new Error("No image was returned");
-    }
-
-    return data.redesignedImage;
   };
 
   const handleRedesign = useCallback(async () => {
@@ -166,18 +69,21 @@ const Index = () => {
       return;
     }
 
+    // Check if user is logged in
     if (!user) {
       toast.error("Please sign in to use redesign credits");
       navigate("/auth");
       return;
     }
 
+    // Check credits
     if (credits && credits.tier !== "pro" && credits.creditsRemaining <= 0) {
       setUpgradeReason("no-credits");
       setUpgradeModalOpen(true);
       return;
     }
 
+    // Use a credit
     const canProceed = await useCredit();
     if (!canProceed) {
       setUpgradeReason("no-credits");
@@ -186,107 +92,41 @@ const Index = () => {
     }
 
     setIsLoading(true);
-
+    
     try {
-      const redesignedImageUrl = await performRedesign(selectedImage, selectedStyle);
-      setRedesignedImage(redesignedImageUrl);
-      toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
+      const { data, error } = await supabase.functions.invoke("redesign-room", {
+        body: {
+          image: selectedImage,
+          style: selectedStyle,
+        },
+      });
 
-      const redesignId = await saveRedesign(
-        selectedImage,
-        redesignedImageUrl,
-        selectedStyle,
-        {},
-        false
-      );
-      setCurrentRedesignId(redesignId);
-      setIsFavorite(false);
+      if (error) {
+        console.error("Error calling redesign function:", error);
+        throw new Error(error.message || "Failed to redesign room");
+      }
 
-      await refreshCredits();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.redesignedImage) {
+        setRedesignedImage(data.redesignedImage);
+        toast.success(`Your ${styleNames[selectedStyle]} redesign is ready!`);
+        // Refresh credits to get updated count
+        await refreshCredits();
+      } else {
+        throw new Error("No image was returned");
+      }
     } catch (error) {
       console.error("Redesign error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to redesign. Please try again.");
+      // Refresh credits in case of error
       await refreshCredits();
     } finally {
       setIsLoading(false);
     }
-  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate, saveRedesign]);
-
-  const handleRefine = useCallback(
-    async (customizations: RoomCustomizationOptions) => {
-      if (!selectedImage || !redesignedImage) return;
-
-      if (!user) {
-        toast.error("Please sign in to refine your redesign");
-        navigate("/auth");
-        return;
-      }
-
-      if (credits && credits.tier !== "pro" && credits.creditsRemaining <= 0) {
-        setUpgradeReason("no-credits");
-        setUpgradeModalOpen(true);
-        return;
-      }
-
-      const canProceed = await useCredit();
-      if (!canProceed) {
-        setUpgradeReason("no-credits");
-        setUpgradeModalOpen(true);
-        return;
-      }
-
-      setIsRefining(true);
-
-      try {
-        const refinedImageUrl = await performRedesign(
-          selectedImage,
-          selectedStyle,
-          customizations
-        );
-        setRedesignedImage(refinedImageUrl);
-        toast.success("Your customizations have been applied!");
-
-        const redesignId = await saveRedesign(
-          selectedImage,
-          refinedImageUrl,
-          selectedStyle,
-          customizations as unknown as Record<string, unknown>,
-          isFavorite
-        );
-        setCurrentRedesignId(redesignId);
-
-        await refreshCredits();
-      } catch (error) {
-        console.error("Refinement error:", error);
-        toast.error(
-          error instanceof Error ? error.message : "Failed to apply customizations. Please try again."
-        );
-        await refreshCredits();
-      } finally {
-        setIsRefining(false);
-      }
-    },
-    [selectedImage, redesignedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate, saveRedesign, isFavorite]
-  );
-
-  const handleDownload = useCallback(async () => {
-    if (!redesignedImage) return;
-    try {
-      await downloadImage(redesignedImage, generateFilename(styleNames[selectedStyle], "redesign"));
-      toast.success("Image downloaded successfully!");
-    } catch (error) {
-      toast.error("Failed to download image");
-    }
-  }, [redesignedImage, selectedStyle]);
-
-  const handleSaveFavorite = useCallback(
-    async (favorite: boolean) => {
-      if (!currentRedesignId) return;
-      setIsFavorite(favorite);
-      await updateFavorite(currentRedesignId, favorite);
-    },
-    [currentRedesignId, updateFavorite]
-  );
+  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate]);
 
   const scrollToUpload = () => {
     document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" });
@@ -294,22 +134,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen gradient-hero">
-      <LoadingOverlay
-        isVisible={isLoading || isRefining}
-        title={isRefining ? "Applying Your Customizations" : "Reimagining Your Space"}
-        description={
-          isRefining
-            ? "Refining the design with your wall colors and trim preferences..."
-            : "Our AI is working its magic to transform your room..."
-        }
-      />
-      <UpgradeModal
-        open={upgradeModalOpen}
+      <LoadingOverlay isVisible={isLoading} />
+      <UpgradeModal 
+        open={upgradeModalOpen} 
         onOpenChange={setUpgradeModalOpen}
         reason={upgradeReason}
         featureName={premiumFeatureName}
       />
-
+      
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/60 backdrop-blur-md border-b border-border/50">
         <nav className="container mx-auto px-4 h-16 flex items-center justify-between" aria-label="Main navigation">
@@ -330,24 +162,8 @@ const Index = () => {
               aria-label="View portfolio"
             >
               <FolderOpen className="w-4 h-4 mr-2" aria-hidden="true" />
-              <span className="hidden sm:inline">Portfolio</span>
+              Portfolio
             </Button>
-            {user && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const historySection = document.getElementById("history-section");
-                  if (historySection) {
-                    historySection.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
-                aria-label="View redesign history"
-              >
-                <History className="w-4 h-4 mr-2" aria-hidden="true" />
-                <span className="hidden sm:inline">History</span>
-              </Button>
-            )}
             {user ? (
               <Button
                 variant="ghost"
@@ -356,7 +172,7 @@ const Index = () => {
                 aria-label="Go to dashboard"
               >
                 <LayoutDashboard className="w-4 h-4 mr-2" aria-hidden="true" />
-                <span className="hidden sm:inline">Dashboard</span>
+                Dashboard
               </Button>
             ) : (
               <Button variant="outline" size="sm" onClick={() => navigate("/auth")} aria-label="Sign in to your account">
@@ -462,17 +278,6 @@ const Index = () => {
               />
             </div>
 
-            {/* Room Analysis */}
-            {selectedImage && (
-              <RoomAnalysis
-                analysis={roomAnalysis}
-                isLoading={isAnalyzing}
-                onAnalyze={handleAnalyzeRoom}
-                hasImage={!!selectedImage}
-                onApplyColor={handleApplyColor}
-              />
-            )}
-
             {/* Step 2: Select Style */}
             <div className="p-6 rounded-2xl bg-card border border-border shadow-soft">
               <div className="flex items-center gap-3 mb-6">
@@ -519,20 +324,7 @@ const Index = () => {
                     styleName={styleNames[selectedStyle]}
                   />
                 </div>
-
-                {/* Post-Redesign Customization */}
-                <PostRedesignCustomization
-                  originalImage={selectedImage}
-                  redesignedImage={redesignedImage}
-                  styleName={styleNames[selectedStyle]}
-                  onRefine={handleRefine}
-                  onDownload={handleDownload}
-                  onSave={handleSaveFavorite}
-                  isRefining={isRefining}
-                  isFavorite={isFavorite}
-                  suggestedColor={selectedSuggestedColor || undefined}
-                />
-
+                
                 {/* Shop This Look */}
                 <ShopThisLook styleName={styleNames[selectedStyle]} />
 
@@ -547,7 +339,7 @@ const Index = () => {
                         Love This Design? Make It Real!
                       </h3>
                       <p className="text-muted-foreground">
-                        Connect with our professional design partner to bring your AI-generated vision to life.
+                        Connect with our professional design partner to bring your AI-generated vision to life. 
                         Get expert guidance on materials, furniture, and execution.
                       </p>
                     </div>
@@ -567,36 +359,6 @@ const Index = () => {
               </div>
             )}
           </div>
-        </div>
-      </section>
-
-      {/* Google Opal Interior Designer Section */}
-      <section className="py-20 px-4 bg-card/30">
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-              <Palette className="w-4 h-4" />
-              Google AI Experiment
-            </div>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
-              Try Another AI Designer
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Explore Google's experimental Opal Interior Designer for an alternative AI-powered room design experience.
-            </p>
-          </div>
-          <div className="rounded-2xl overflow-hidden border border-border shadow-medium bg-card">
-            <iframe
-              src="https://opal.google/?flow=drive:/1c9MhAaAozGS7rM5uZJmxiSChMP4zxfN5&shared&mode=app"
-              title="Google Opal Interior Designer"
-              className="w-full h-[700px] border-0"
-              allow="camera; microphone"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-            />
-          </div>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Powered by Google Labs • This is an experimental feature
-          </p>
         </div>
       </section>
       </article>

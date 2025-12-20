@@ -1,22 +1,18 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for base64 encoded image
     const ALLOWED_STYLES = [
       'modern', 'modern-spa', 'scandinavian', 'industrial', 'bohemian',
       'minimalist', 'traditional', 'mid-century', 'coastal', 'farmhouse',
@@ -25,6 +21,7 @@ Deno.serve(async (req) => {
 
     const { image, style, customizations } = await req.json();
     
+    // Validate image exists and is string
     if (!image || typeof image !== 'string') {
       return new Response(
         JSON.stringify({ error: "Invalid image data" }),
@@ -32,6 +29,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate style exists and is in allowed list
     if (!style || typeof style !== 'string' || !ALLOWED_STYLES.includes(style)) {
       return new Response(
         JSON.stringify({ error: "Invalid style selection" }),
@@ -39,6 +37,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate image size
     if (image.length > MAX_IMAGE_SIZE) {
       return new Response(
         JSON.stringify({ error: "Image too large. Maximum 10MB allowed." }),
@@ -46,6 +45,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate image format (data URL)
     if (!image.startsWith('data:image/')) {
       return new Response(
         JSON.stringify({ error: "Invalid image format. Please upload a valid image." }),
@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Get auth header and verify user
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(
@@ -61,12 +62,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Create Supabase clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     
+    // Service role client for admin operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
+    // Get user from token using service role
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     
@@ -80,6 +84,7 @@ Deno.serve(async (req) => {
 
     console.log("User authenticated:", user.id);
 
+    // Create user-authenticated client for RPC call (so auth.uid() works)
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -88,6 +93,7 @@ Deno.serve(async (req) => {
       },
     });
 
+    // Use the database function to check and deduct credit
     const { data: creditUsed, error: creditError } = await supabaseUser.rpc("use_credit", {
       p_user_id: user.id,
     });
@@ -130,11 +136,13 @@ Deno.serve(async (req) => {
       mediterranean: "Convert this room to Mediterranean style with terracotta tones, wrought iron details, arched doorways, mosaic tiles, and warm sunny European villa aesthetic. Maintain the room layout.",
     };
 
+    // Build customization additions to the prompt
     let customizationPrompt = "";
     
     if (customizations) {
       const customParts: string[] = [];
       
+      // Wall color customization
       if (customizations.wallColor && customizations.wallColor !== "keep") {
         const wallColorMap: Record<string, string> = {
           "white": "bright white walls",
@@ -152,6 +160,7 @@ Deno.serve(async (req) => {
         customParts.push(`Paint the walls with ${wallColorMap[customizations.wallColor] || customizations.wallColor}`);
       }
       
+      // Trim/molding customization
       if (customizations.trimStyle && customizations.trimStyle !== "keep") {
         const trimStyleMap: Record<string, string> = {
           "none": "remove or minimize visible trim and molding",
@@ -166,6 +175,7 @@ Deno.serve(async (req) => {
         
         let trimInstruction = trimStyleMap[customizations.trimStyle] || customizations.trimStyle;
         
+        // Add trim color if specified
         if (customizations.trimColor && !["keep", "none"].includes(customizations.trimStyle)) {
           const trimColorMap: Record<string, string> = {
             "white": "in bright white",
@@ -180,6 +190,7 @@ Deno.serve(async (req) => {
         customParts.push(trimInstruction);
       }
       
+      // Additional details
       if (customizations.additionalDetails && customizations.additionalDetails.trim()) {
         customParts.push(customizations.additionalDetails.trim());
       }
@@ -227,6 +238,8 @@ Deno.serve(async (req) => {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       
+      // Refund credit on AI error - increment credit back using admin client
+      // First get current credits, then increment
       const { data: creditData } = await supabaseAdmin
         .from("user_credits")
         .select("credits_remaining")
@@ -266,6 +279,7 @@ Deno.serve(async (req) => {
     if (!generatedImage) {
       console.log("No image in response for user:", user.id);
       
+      // Check if AI gave a positive response but no image (API issue)
       if (aiMessage.toLowerCase().includes("here's") || aiMessage.toLowerCase().includes("transformed")) {
         return new Response(
           JSON.stringify({ 
@@ -276,6 +290,7 @@ Deno.serve(async (req) => {
         );
       }
       
+      // AI is rejecting the image (not a room, etc.)
       return new Response(
         JSON.stringify({ 
           error: "Please upload an interior room photo. The AI needs to see the inside of a room to redesign it.",
@@ -297,13 +312,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error("Error in redesign-room function:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "An unexpected error occurred"
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "An unexpected error occurred" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

@@ -1,7 +1,1 @@
 project_id = "ehrshkkrfyxtvsmdwjgy"
-
-[functions.redesign-room]
-verify_jwt = true
-
-[functions.analyze-room]
-verify_jwt = true

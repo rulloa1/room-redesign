@@ -3,15 +3,9 @@ import { Sparkles } from "lucide-react";
 
 interface LoadingOverlayProps {
   isVisible: boolean;
-  title?: string;
-  description?: string;
 }
 
-export const LoadingOverlay = ({
-  isVisible,
-  title = "Reimagining Your Space",
-  description = "Our AI is working its magic to transform your room...",
-}: LoadingOverlayProps) => {
+export const LoadingOverlay = ({ isVisible }: LoadingOverlayProps) => {
   if (!isVisible) return null;
 
   return (
@@ -29,10 +23,10 @@ export const LoadingOverlay = ({
         </div>
         <div className="text-center">
           <h3 className="text-xl font-display font-medium text-foreground">
-            {title}
+            Reimagining Your Space
           </h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-xs">
-            {description}
+            Our AI is working its magic to transform your room...
           </p>
         </div>
         <div className="flex gap-1">
