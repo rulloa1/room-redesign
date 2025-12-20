@@ -21,6 +21,7 @@ import { ImageUpload } from "@/components/ImageUpload";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { RoomCustomizations, RoomCustomizationOptions, getDefaultCustomizations } from "@/components/RoomCustomizations";
+import { AIErrorPanel } from "@/components/AIErrorPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -69,6 +70,7 @@ const Project = () => {
   const [newRoomImage, setNewRoomImage] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<ProjectRoom | null>(null);
   const [customizations, setCustomizations] = useState<RoomCustomizationOptions>(getDefaultCustomizations());
+  const [aiError, setAiError] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -151,6 +153,7 @@ const Project = () => {
     if (!project) return;
 
     setProcessingRoom(room.id);
+    setAiError(false);
 
     try {
       const { data, error } = await supabase.functions.invoke("redesign-room", {
@@ -167,8 +170,24 @@ const Project = () => {
         },
       });
 
-      if (error) throw new Error(error.message);
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        // Check for 402/429 AI limit errors
+        if (error.message?.includes("402") || error.message?.includes("429") || 
+            error.message?.includes("usage limit") || error.message?.includes("rate limit")) {
+          setAiError(true);
+          return;
+        }
+        throw new Error(error.message);
+      }
+      
+      if (data.error) {
+        // Check for AI limit errors in response body
+        if (data.error.includes("usage limit") || data.error.includes("rate limit")) {
+          setAiError(true);
+          return;
+        }
+        throw new Error(data.error);
+      }
 
       if (data.redesignedImage) {
         const { error: updateError } = await supabase
@@ -189,7 +208,12 @@ const Project = () => {
       }
     } catch (error) {
       console.error("Redesign error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to redesign");
+      const errorMsg = error instanceof Error ? error.message : "";
+      if (errorMsg.includes("usage limit") || errorMsg.includes("rate limit")) {
+        setAiError(true);
+      } else {
+        toast.error(errorMsg || "Failed to redesign");
+      }
     } finally {
       setProcessingRoom(null);
     }
@@ -413,6 +437,16 @@ const Project = () => {
                         <RoomCustomizations
                           value={customizations}
                           onChange={setCustomizations}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* AI Error Panel */}
+                    {aiError && (
+                      <div className="mb-4">
+                        <AIErrorPanel
+                          onRetry={() => selectedRoom && handleRedesignRoom(selectedRoom)}
+                          isRetrying={!!processingRoom}
                         />
                       </div>
                     )}
