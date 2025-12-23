@@ -11,6 +11,7 @@ import Portfolio from "./pages/Portfolio";
 import Project from "./pages/Project";
 import Pricing from "./pages/Pricing";
 import Dashboard from "./pages/Dashboard";
+import VapiDemo from "./pages/VapiDemo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/project/:id" element={<Project />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/vapi-demo" element={<VapiDemo />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
