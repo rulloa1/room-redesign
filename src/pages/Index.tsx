@@ -35,7 +35,7 @@ const styleNames: Record<string, string> = {
 const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { credits, useCredit, refreshCredits } = useCredits();
+  const { credits, useCredit: consumeCredit, refreshCredits } = useCredits();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStyle, setSelectedStyle] = useState("modern");
   const [isLoading, setIsLoading] = useState(false);
@@ -86,7 +86,7 @@ const Index = () => {
     }
 
     // Use a credit
-    const canProceed = await useCredit();
+    const canProceed = await consumeCredit();
     if (!canProceed) {
       setUpgradeReason("no-credits");
       setUpgradeModalOpen(true);
@@ -145,7 +145,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedImage, selectedStyle, user, credits, useCredit, refreshCredits, navigate]);
+  }, [selectedImage, selectedStyle, user, credits, consumeCredit, refreshCredits, navigate]);
 
   const scrollToUpload = () => {
     document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" });
